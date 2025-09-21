@@ -1,0 +1,71 @@
+course_code,course_title,credits,subject_area,category,recommended_semester,prereq_course_codes
+CS-101,Programming in Python,4,CS,CORE_FIXED,1,
+CS-102,Data Structures,4,CS,CORE_FIXED,2,CS-101
+CS-201,Algorithms,4,CS,ELECTIVE,3,CS-102
+CS-210,Computer Networks,4,CS,ELECTIVE,3,CS-101
+CS-220,Databases,4,CS,ELECTIVE,3,CS-101
+CS-230,Operating Systems,4,CS,ELECTIVE,4,CS-102
+CS-250,Web Development,4,CS,ELECTIVE,2,CS-101
+AI-101,Intro to Artificial Intelligence,4,AI,CORE_FIXED,3,"CS-101,MATH-120"
+AI-201,Machine Learning,4,AI,ELECTIVE,4,"AI-101,MATH-220"
+AI-210,Deep Learning,4,AI,ELECTIVE,5,AI-201
+AI-220,Natural Language Processing,4,AI,ELECTIVE,5,AI-201
+AI-240,Reinforcement Learning,4,AI,ELECTIVE,6,AI-201
+MATH-130,Calculus I,4,MATH,CORE_FIXED,1,
+MATH-120,Linear Algebra,4,MATH,CORE_FIXED,2,
+MATH-220,Probability & Statistics,4,MATH,CORE_FIXED,3,MATH-130
+MATH-230,Calculus II,4,MATH,ELECTIVE,2,MATH-130
+MATH-240,Discrete Mathematics,4,MATH,ELECTIVE,2,MATH-130
+PHY-110,Classical Mechanics,4,PHY,CORE_FIXED,1,MATH-130
+PHY-210,Electromagnetism,4,PHY,CORE_OPTION,3,"PHY-110,MATH-230"
+PHY-220,Thermodynamics,4,PHY,ELECTIVE,3,MATH-220
+PHY-230,Quantum Mechanics,4,PHY,CORE_OPTION,5,"PHY-210,MATH-220"
+ENG-101,English Literature I,4,ENG,CORE_FIXED,1,
+ENG-210,Academic Writing,4,ENG,CORE_FIXED,1,
+ENG-201,English Literature II,4,ENG,CORE_OPTION,2,ENG-101
+ENG-220,Creative Writing Workshop,4,ENG,CORE_OPTION,3,ENG-210
+HIS-101,Ancient Civilizations,4,HIS,CORE_FIXED,1,
+HIS-201,Medieval History,4,HIS,ELECTIVE,2,HIS-101
+HIS-210,Modern World History,4,HIS,ELECTIVE,3,HIS-201
+FIN-101,Financial Accounting,4,FIN,CORE_FIXED,1,
+FIN-201,Corporate Finance,4,FIN,CORE_OPTION,3,FIN-101
+FIN-210,Business Analytics,4,FIN,CORE_OPTION,3,"FIN-101,MATH-220"
+RES-300,Research Methods,4,RESEARCH,RESEARCH,5,ENG-210
+RES-310,Research Ethics,4,RESEARCH,RESEARCH,5,RES-300
+RES-320,Data Analysis for Research,4,RESEARCH,RESEARCH,5,"RES-300,MATH-220"
+RES-400,Undergraduate Thesis I,4,RESEARCH,RESEARCH,6,RES-300
+RES-410,Undergraduate Thesis II,4,RESEARCH,RESEARCH,6,RES-400
+AEC-101,French I,2,AEC,AEC,1,
+AEC-102,French II,2,AEC,AEC,2,AEC-101
+AEC-111,Hindi I,2,AEC,AEC,1,
+AEC-112,Hindi II,2,AEC,AEC,2,AEC-111
+AEC-121,Spanish I,2,AEC,AEC,1,
+AEC-122,Spanish II,2,AEC,AEC,2,AEC-121
+AEC-131,German I,2,AEC,AEC,1,
+AEC-132,German II,2,AEC,AEC,2,AEC-131
+VAC-101,Public Speaking,2,VAC,VAC,2,
+VAC-102,Design Thinking,2,VAC,VAC,3,VAC-101
+VAC-103,Environmental Awareness,2,VAC,VAC,1,
+VAC-104,Entrepreneurship Basics,2,VAC,VAC,3,VAC-101
+VAC-105,Community Service,2,VAC,VAC,2,
+VAC-106,Leadership Lab,2,VAC,VAC,4,VAC-101
+RES-420,Undergraduate Thesis III,4,RESEARCH,RESEARCH,7,RES-410
+RES-430,Thesis Defense & Dissemination,4,RESEARCH,RESEARCH,8,RES-420
+RES-440,Research Internship,4,RESEARCH,RESEARCH,7,RES-300
+RES-450,Publication Seminar,4,RESEARCH,RESEARCH,8,RES-410
+AI-310,Advanced Deep Learning,4,AI,CORE_OPTION,7,AI-210
+AI-330,Generative AI,4,AI,CORE_OPTION,7,AI-201
+AI-340,MLOps & Model Deployment,4,AI,CORE_OPTION,8,"AI-201,CS-220"
+AI-360,AI Safety & Ethics,4,AI,CORE_OPTION,8,"AI-101,RES-310"
+CS-310,Distributed Systems,4,CS,CORE_OPTION,7,CS-230
+CS-320,Cloud Computing,4,CS,CORE_OPTION,7,CS-220
+CS-330,Advanced Database Systems,4,CS,CORE_OPTION,8,CS-220
+CS-340,Compilers,4,CS,CORE_OPTION,7,CS-230
+CS-360,Big Data Systems,4,CS,CORE_OPTION,8,"CS-220,MATH-220"
+MATH-320,Statistical Inference,4,MATH,CORE_OPTION,7,MATH-220
+MATH-330,Optimization,4,MATH,CORE_OPTION,7,MATH-120
+MATH-340,Graph Theory,4,MATH,CORE_OPTION,8,MATH-240
+PHY-310,Solid State Physics,4,PHY,CORE_OPTION,7,PHY-210
+PHY-320,Nuclear Physics,4,PHY,CORE_OPTION,8,"PHY-210,MATH-220"
+ENG-320,Research Writing Seminar,4,ENG,CORE_OPTION,7,ENG-210
+FIN-320,Risk Management,4,FIN,CORE_OPTION,8,"FIN-201,MATH-220"

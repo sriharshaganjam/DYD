@@ -1,0 +1,28 @@
+# Core database driver
+neo4j==5.22.0
+
+# Data wrangling
+pandas>=2.2.0
+numpy>=1.26.0
+python-dotenv>=1.0.1
+openpyxl
+
+# Embeddings
+sentence-transformers==5.1.0
+huggingface-hub==0.35.0
+
+# App frontend
+streamlit>=1.36.0
+
+mistralai>=0.2.0      
+langchain-mistralai  
+
+# Semantic search / fuzzy
+rapidfuzz>=3.9.0
+
+# Orchestration (LangChain, optional but useful for retriever/chatbot pipelines)
+langchain>=0.2.0
+langchain-community>=0.2.0
+
+# HTTP client (to call Mistral or any API)
+requests>=2.31.0
