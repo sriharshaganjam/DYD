@@ -424,26 +424,76 @@ def build_dependency_tree(_drv, course_code: str, direction: str = "prerequisite
     render_tree(tree)
     return "\n".join(lines) if len(lines) > 3 else None
 
-# ---------- Query Processing ----------
+# ---------- Conversation Memory Helper ----------
+def get_conversation_context() -> str:
+    """Extract context from previous conversation messages"""
+    if not st.session_state.messages:
+        return ""
+    
+    context_parts = []
+    # Look at last 6 messages to get recent context
+    recent_messages = st.session_state.messages[-6:] if len(st.session_state.messages) > 6 else st.session_state.messages
+    
+    for msg in recent_messages:
+        if msg["role"] == "user":
+            context_parts.append(f"Student asked: {msg['content']}")
+        elif msg["role"] == "assistant" and not msg.get("is_code", False):
+            # Extract key information from assistant responses
+            content = msg["content"]
+            if "courses at Jain University" in content:
+                # Extract course mentions
+                course_matches = re.findall(r'([A-Z]{2,4}-\d{3})', content)
+                if course_matches:
+                    context_parts.append(f"Previously discussed courses: {', '.join(course_matches[:3])}")
+            
+            if "career opportunities" in content or "job" in content.lower():
+                context_parts.append("Previously discussed career opportunities")
+    
+    return " | ".join(context_parts) if context_parts else ""
+
+# ---------- Enhanced Query Processing with Memory ----------
 def process_user_query(_drv, user_input: str) -> Dict[str, Any]:
-    """Process user query and determine appropriate search strategy"""
+    """Process user query with conversation memory context"""
     
     input_lower = user_input.lower()
+    conversation_context = get_conversation_context()
+    
     results = {
         'courses': [],
         'jobs': [],
         'ascii_tree': None,
         'search_type': 'general',
         'context': 'jain_university',
-        'specific_course': None
+        'specific_course': None,
+        'conversation_context': conversation_context
     }
     
-    # Check for specific course codes or course names
+    # Enhanced query processing that considers conversation context
+    follow_up_patterns = [
+        'tell me more', 'more information', 'learn more', 'details about',
+        'what about', 'how about', 'dependencies', 'prerequisites', 'career prospects'
+    ]
+    
+    is_follow_up = any(pattern in input_lower for pattern in follow_up_patterns)
+    
+    # Check for course code references from context or direct mention
     course_codes = re.findall(r'([A-Za-z]{2,}[-\s]?\d{2,3})', user_input, re.IGNORECASE)
+    
+    # If it's a follow-up and no specific course mentioned, try to extract from context
+    if is_follow_up and not course_codes and conversation_context:
+        context_courses = re.findall(r'([A-Z]{2,4}-\d{3})', conversation_context)
+        if context_courses:
+            course_codes = context_courses[:1]  # Use the most recent course
+    
+    # Enhanced search query that includes context
+    search_query = user_input
+    if conversation_context and is_follow_up:
+        search_query = f"{user_input} {conversation_context}"
     
     # Check if asking about a specific course by name
     course_keywords = ['programming in python', 'python programming', 'web development', 'data science', 
-                      'artificial intelligence', 'machine learning', 'algorithms', 'computer networks']
+                      'artificial intelligence', 'machine learning', 'algorithms', 'computer networks',
+                      'history', 'mathematics', 'statistics', 'business', 'english']
     
     specific_course_query = None
     for keyword in course_keywords:
@@ -458,7 +508,7 @@ def process_user_query(_drv, user_input: str) -> Dict[str, Any]:
     is_pathway_query = any(term in input_lower for term in ['pathway', 'learning path', 'study after', 'what next', 'progression'])
     
     # Do semantic search for courses
-    course_results = semantic_search_courses(_drv, user_input, top_k=10)
+    course_results = semantic_search_courses(_drv, search_query, top_k=10)
     results['courses'] = course_results
     
     # Process based on intent and content
@@ -486,7 +536,7 @@ def process_user_query(_drv, user_input: str) -> Dict[str, Any]:
         
     elif is_job_query:
         # Job-focused query
-        job_results = semantic_search_jobs(_drv, user_input, top_k=8)
+        job_results = semantic_search_jobs(_drv, search_query, top_k=8)
         results['jobs'] = job_results
         results['search_type'] = 'job_search'
         

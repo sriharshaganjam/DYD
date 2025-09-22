@@ -51,8 +51,8 @@ EMBED_DIM = int(os.getenv("EMBEDDING_DIM", "384"))
 
 # ---------- UI setup ----------
 st.set_page_config(page_title="Jain University Course & Career Assistant", layout="wide")
-st.title("🎓 Jain University — Design Your Degree Course & Career Assistant")
-st.markdown("*Discover courses, prerequisites, and career opportunities to build a customized degree that you can curate at Jain University*")
+st.title("🎓 Jain University — Course & Career Assistant")
+st.markdown("*Discover courses, prerequisites, and career opportunities at Jain University*")
 
 def mask(s: str) -> str:
     if not s:
@@ -308,67 +308,52 @@ def get_course_dependencies(_drv, course_code: str, direction: str = "prerequisi
     return result[0] if result else {}
 
 def build_dependency_tree(_drv, course_code: str, direction: str = "prerequisites") -> Optional[str]:
-    """Build ASCII tree visualization with robust fallback to prereq_course_codes property
-
-    NOTE: This is a minimal, backward-compatible fix for the prerequisite lookup.
-    It uses the correct keys returned by the Cypher query (prerequisite_paths / postrequisite_paths),
-    and falls back to parsing CSV-style prereq fields (handles both prereq_codes and prereq_course_codes).
-    """
+    """Build ASCII tree visualization with robust fallback to prereq_course_codes property"""
+    
     # Get dependency data from database
     deps = get_course_dependencies(_drv, course_code, direction)
     if not deps:
         return None
 
-    # Determine correct key names returned by the Cypher in get_course_dependencies
-    if direction == "prerequisites":
-        paths_key = "prerequisite_paths"
-    else:
-        paths_key = "postrequisite_paths"
-
     # 1) Try to use relationship path data first
-    tree_paths = deps.get(paths_key, []) or []
-    # valid_paths are those with at least one dependency node beyond the root
+    tree_paths = deps.get(f"{direction}_paths", []) or []
     valid_paths = [path for path in tree_paths if path and len(path) > 1]
 
     # 2) If no relationship paths and looking for postrequisites, search for courses that have this course as prerequisite
     if not valid_paths and direction == "postrequisites":
+        # Find courses that list this course in their prereq_course_codes
         search_query = """
         MATCH (c:Course)
         WHERE c.prereq_course_codes CONTAINS $course_code
         RETURN c.course_code AS course_code, c.course_title AS title
-        LIMIT 200
+        LIMIT 20
         """
-        dependent_courses = []
-        try:
-            dependent_courses = run_read_cypher(_drv, search_query, {"course_code": course_code})
-        except Exception:
-            dependent_courses = []
-
+        
+        dependent_courses = run_read_cypher(_drv, search_query, {"course_code": course_code})
+        
         if dependent_courses:
             course_title = deps.get("title", "")
             header = f"{course_code}" + (f" - {course_title}" if course_title else "")
             lines = [f"📚 {header}", f"{'─' * (len(header) + 4)}", f"Courses This Unlocks:"]
-
+            
             for i, dep_course in enumerate(dependent_courses):
                 dep_code = dep_course.get("course_code", "")
                 dep_title = dep_course.get("title", "")
                 display = f"{dep_code}" + (f" - {dep_title[:40]}..." if dep_title and len(dep_title) > 40 else (f" - {dep_title}" if dep_title else ""))
                 connector = "└── " if i == len(dependent_courses) - 1 else "├── "
                 lines.append(f"{connector}{display}")
-
+            
             return "\n".join(lines)
 
     # 3) If looking for prerequisites and no relationship paths, fall back to prereq_course_codes CSV property
     if not valid_paths and direction == "prerequisites":
-        # Try both common keys
-        raw_prereqs = deps.get("prereq_codes") or deps.get("prereq_course_codes") or ""
-        # Parse CSV-ish formats (comma, semicolon, newline)
+        raw_prereqs = deps.get("prereq_codes") or ""
+        # Parse CSV (accept comma, semicolon or newline separated values)
         codes = [c.strip() for c in re.split(r'[,;\n]+', raw_prereqs) if c.strip()]
         if not codes:
-            # no prereq codes found — return None so caller can proceed
             return None
 
-        # Fetch titles for the prerequisite codes (best-effort)
+        # Fetch titles for the prerequisite codes
         cypher_titles = """
         UNWIND $codes AS code
         OPTIONAL MATCH (x:Course {course_code: code})
@@ -382,7 +367,7 @@ def build_dependency_tree(_drv, course_code: str, direction: str = "prerequisite
         except Exception:
             titles_map = {}
 
-        # Build simple two-level tree from CSV data (preserve original formatting)
+        # Build simple two-level tree from CSV data
         course_title = deps.get("title", "")
         header = f"{course_code}" + (f" - {course_title}" if course_title else "")
         lines = [f"📚 {header}", f"{'─' * (len(header) + 4)}", f"Prerequisites:"]
@@ -395,10 +380,10 @@ def build_dependency_tree(_drv, course_code: str, direction: str = "prerequisite
 
         return "\n".join(lines)
 
-    # 4) If we have relationship paths (multi-hop), build multi-level tree exactly as before
     if not valid_paths:
         return None
 
+    # 3) Build tree from relationship path data (multi-hop)
     tree = {}
     for path in valid_paths:
         current = tree
@@ -407,20 +392,20 @@ def build_dependency_tree(_drv, course_code: str, direction: str = "prerequisite
             for node in path[1:]:
                 code = node.get("code")
                 title = node.get("title", "")
-                display = f"{code}" + (f" - {title[:20]}." if title and len(title) > 20 else (f" - {title}" if title else ""))
+                display = f"{code}" + (f" - {title[:20]}..." if title and len(title) > 20 else (f" - {title}" if title else ""))
                 current = current.setdefault(display, {})
         else:
             # For postrequisites, show what this course unlocks
             for node in path[1:]:
                 code = node.get("code")
                 title = node.get("title", "")
-                display = f"{code}" + (f" - {title[:20]}." if title and len(title) > 20 else (f" - {title}" if title else ""))
+                display = f"{code}" + (f" - {title[:20]}..." if title and len(title) > 20 else (f" - {title}" if title else ""))
                 current = current.setdefault(display, {})
 
     if not tree:
         return None
 
-    # Render multi-level ASCII tree (same rendering logic as original)
+    # Render multi-level ASCII tree
     direction_label = "Prerequisites" if direction == "prerequisites" else "Courses This Unlocks"
     course_title = deps.get("title", "")
     header = f"{course_code}" + (f" - {course_title}" if course_title else "")
@@ -439,26 +424,76 @@ def build_dependency_tree(_drv, course_code: str, direction: str = "prerequisite
     render_tree(tree)
     return "\n".join(lines) if len(lines) > 3 else None
 
-# ---------- Query Processing ----------
+# ---------- Conversation Memory Helper ----------
+def get_conversation_context() -> str:
+    """Extract context from previous conversation messages"""
+    if not st.session_state.messages:
+        return ""
+    
+    context_parts = []
+    # Look at last 6 messages to get recent context
+    recent_messages = st.session_state.messages[-6:] if len(st.session_state.messages) > 6 else st.session_state.messages
+    
+    for msg in recent_messages:
+        if msg["role"] == "user":
+            context_parts.append(f"Student asked: {msg['content']}")
+        elif msg["role"] == "assistant" and not msg.get("is_code", False):
+            # Extract key information from assistant responses
+            content = msg["content"]
+            if "courses at Jain University" in content:
+                # Extract course mentions
+                course_matches = re.findall(r'([A-Z]{2,4}-\d{3})', content)
+                if course_matches:
+                    context_parts.append(f"Previously discussed courses: {', '.join(course_matches[:3])}")
+            
+            if "career opportunities" in content or "job" in content.lower():
+                context_parts.append("Previously discussed career opportunities")
+    
+    return " | ".join(context_parts) if context_parts else ""
+
+# ---------- Enhanced Query Processing with Memory ----------
 def process_user_query(_drv, user_input: str) -> Dict[str, Any]:
-    """Process user query and determine appropriate search strategy"""
+    """Process user query with conversation memory context"""
     
     input_lower = user_input.lower()
+    conversation_context = get_conversation_context()
+    
     results = {
         'courses': [],
         'jobs': [],
         'ascii_tree': None,
         'search_type': 'general',
         'context': 'jain_university',
-        'specific_course': None
+        'specific_course': None,
+        'conversation_context': conversation_context
     }
     
-    # Check for specific course codes or course names
+    # Enhanced query processing that considers conversation context
+    follow_up_patterns = [
+        'tell me more', 'more information', 'learn more', 'details about',
+        'what about', 'how about', 'dependencies', 'prerequisites', 'career prospects'
+    ]
+    
+    is_follow_up = any(pattern in input_lower for pattern in follow_up_patterns)
+    
+    # Check for course code references from context or direct mention
     course_codes = re.findall(r'([A-Za-z]{2,}[-\s]?\d{2,3})', user_input, re.IGNORECASE)
+    
+    # If it's a follow-up and no specific course mentioned, try to extract from context
+    if is_follow_up and not course_codes and conversation_context:
+        context_courses = re.findall(r'([A-Z]{2,4}-\d{3})', conversation_context)
+        if context_courses:
+            course_codes = context_courses[:1]  # Use the most recent course
+    
+    # Enhanced search query that includes context
+    search_query = user_input
+    if conversation_context and is_follow_up:
+        search_query = f"{user_input} {conversation_context}"
     
     # Check if asking about a specific course by name
     course_keywords = ['programming in python', 'python programming', 'web development', 'data science', 
-                      'artificial intelligence', 'machine learning', 'algorithms', 'computer networks']
+                      'artificial intelligence', 'machine learning', 'algorithms', 'computer networks',
+                      'history', 'mathematics', 'statistics', 'business', 'english']
     
     specific_course_query = None
     for keyword in course_keywords:
@@ -473,7 +508,7 @@ def process_user_query(_drv, user_input: str) -> Dict[str, Any]:
     is_pathway_query = any(term in input_lower for term in ['pathway', 'learning path', 'study after', 'what next', 'progression'])
     
     # Do semantic search for courses
-    course_results = semantic_search_courses(_drv, user_input, top_k=10)
+    course_results = semantic_search_courses(_drv, search_query, top_k=10)
     results['courses'] = course_results
     
     # Process based on intent and content
@@ -501,7 +536,7 @@ def process_user_query(_drv, user_input: str) -> Dict[str, Any]:
         
     elif is_job_query:
         # Job-focused query
-        job_results = semantic_search_jobs(_drv, user_input, top_k=8)
+        job_results = semantic_search_jobs(_drv, search_query, top_k=8)
         results['jobs'] = job_results
         results['search_type'] = 'job_search'
         
@@ -520,104 +555,89 @@ def process_user_query(_drv, user_input: str) -> Dict[str, Any]:
 
 # ---------- Response Generation (Enhanced from app2.py) ----------
 def generate_response(query_results: Dict[str, Any], user_input: str, client) -> str:
-    """
-    Generate response for user queries.
-
-    IMPORTANT: If the query was routed as a prerequisite lookup
-    (search_type == 'dependency_prerequisites'), return only the
-    ASCII prerequisite tree (or a short not-found message). This
-    prevents unrelated semantic search results (careers, etc.)
-    from being included when the user explicitly asked "what to
-    study before ..." or "what is a prerequisite for ...".
-    """
-    # If this was explicitly a prerequisites query, return ONLY the tree (or a short failure msg)
-    if query_results.get("search_type", "").startswith("dependency_prerequisites"):
-        tree = query_results.get("ascii_tree")
-        if tree:
-            return tree
-        else:
-            # If no tree found, be explicit and concise
-            # Try to mention the top semantic match if available
-            top = None
-            if query_results.get("courses"):
-                top = query_results["courses"][0]
-            if top and top.get("course_code"):
-                return f"I couldn't find explicit prerequisite relationships in the database for {top.get('course_code')}. However, the course most closely matching your query is {top.get('course_code')} - {top.get('title', '')}. It appears there are no recorded prerequisites for that course."
-            return "I couldn't find prerequisites for that course in the database."
-
-    # --- Otherwise keep the original counselor-style behavior (unchanged) ---
-    courses_count = len(query_results.get('courses', []))
-    jobs_count = len(query_results.get('jobs', []))
-
+    """Generate counselor-style response that explains learning pathways"""
+    
+    courses_count = len(query_results['courses'])
+    jobs_count = len(query_results['jobs'])
+    
     if courses_count == 0 and jobs_count == 0:
         return "I couldn't find specific information about that in our Jain University database. Could you rephrase your question or try asking about a different course or career area?"
-
+    
     response_parts = []
-
-    # If it's a course_pathway style response, reuse your existing counselor flow
-    if query_results.get('search_type') == 'course_pathway' and courses_count > 0:
+    
+    # Counselor-style opening based on query type
+    if query_results['search_type'] == 'course_pathway' and courses_count > 0:
         main_course = query_results['courses'][0]
         course_code = main_course.get('course_code', '')
         title = main_course.get('title') or main_course.get('course_title', '')
         subject_area = main_course.get('subject_area', '')
-
+        
+        # Opening explanation
         opening = f"Let me tell you about {title}"
         if course_code:
             opening = f"Let me tell you about {course_code} - {title}"
-
+        
         if subject_area:
             opening += f", which is a foundational course in {subject_area} at Jain University."
         else:
             opening += " at Jain University."
-
+        
         response_parts.append(opening)
         response_parts.append("")
-
+        
         # Show courses that use this as prerequisite or related courses
         advanced_courses = []
         for course in query_results['courses'][1:]:
             course_prereqs = course.get('prereq_codes', '') or course.get('direct_prerequisites', [])
             if isinstance(course_prereqs, str):
                 course_prereqs = [p.strip() for p in course_prereqs.split(',') if p.strip()]
-
+            
+            # Check if current main course is a prerequisite for others
             if course_code and (course_code in str(course_prereqs) or course_code in course_prereqs):
                 advanced_courses.append(course)
-
+        
+        # Show what this course opens up
         if len(query_results['courses']) > 1:
             response_parts.append("This course serves as a stepping stone to several advanced areas of study:")
             response_parts.append("")
+            
+            # Show the advanced courses that were found
             courses_to_show = advanced_courses if advanced_courses else query_results['courses'][1:5]
+            
             for adv_course in courses_to_show:
                 adv_code = adv_course.get('course_code', '')
                 adv_title = adv_course.get('title') or adv_course.get('course_title', '')
                 adv_subject = adv_course.get('subject_area', '')
                 adv_jobs = adv_course.get('job_matches', [])
-
+                
                 course_line = f"**{adv_code} - {adv_title}**"
                 if adv_subject and adv_subject != subject_area:
                     course_line += f" (moves into {adv_subject})"
-
+                
                 response_parts.append(course_line)
-
+                
                 if adv_jobs:
                     response_parts.append(f"This can lead to careers like: {', '.join(adv_jobs[:3])}")
-
+                
                 response_parts.append("")
-
+        
+        # Career opportunities from main course
         career_opps = main_course.get('job_matches', [])
         if career_opps:
             response_parts.append(f"Even with just {title}, you can already explore career opportunities such as: {', '.join(career_opps[:4])}")
             response_parts.append("")
-
+        
+        # Learning pathway advice
         if len(query_results['courses']) > 1:
             response_parts.append("My advice would be to master the fundamentals in this course first, then choose your next step based on your interests:")
             response_parts.append("")
+            
             courses_for_advice = advanced_courses if advanced_courses else query_results['courses'][1:4]
             for adv_course in courses_for_advice:
                 area_focus = adv_course.get('subject_area', '')
                 course_code_adv = adv_course.get('course_code', '')
                 course_title_adv = adv_course.get('title') or adv_course.get('course_title', '')
-
+                
                 if area_focus == 'AI':
                     response_parts.append(f"- If you're interested in artificial intelligence and machine learning, consider {course_code_adv} next")
                 elif 'web' in course_title_adv.lower():
@@ -626,35 +646,37 @@ def generate_response(query_results: Dict[str, Any], user_input: str, client) ->
                     response_parts.append(f"- To deepen your computer science knowledge, {course_code_adv} is a natural progression")
                 else:
                     response_parts.append(f"- For {area_focus} specialization, consider {course_code_adv}")
-
+            
             response_parts.append("")
-
-    elif query_results.get('search_type') == 'job_search' and jobs_count > 0:
+        
+    elif query_results['search_type'] == 'job_search' and jobs_count > 0:
         response_parts.append("Let me guide you through the career opportunities available to Jain University students in this field:")
         response_parts.append("")
-
+        
+        # Group jobs by type/level
         entry_jobs = []
         advanced_jobs = []
-
+        
         for job in query_results['jobs'][:6]:
             job_title = job.get('job_title', '').lower()
             if any(term in job_title for term in ['trainee', 'intern', 'graduate', 'junior', 'associate']):
                 entry_jobs.append(job)
             else:
                 advanced_jobs.append(job)
-
+        
         if entry_jobs:
             response_parts.append("**Starting your career**, you could begin with:")
             response_parts.append("")
             for job in entry_jobs[:3]:
                 title = job.get('job_title', '')
                 related_courses = job.get('related_courses', [])
+                
                 job_line = f"- **{title}**"
                 if related_courses:
                     job_line += f" (prepare with: {', '.join(related_courses[:2])})"
                 response_parts.append(job_line)
             response_parts.append("")
-
+        
         if advanced_jobs:
             response_parts.append("**As you gain experience**, you could progress to:")
             response_parts.append("")
@@ -663,7 +685,8 @@ def generate_response(query_results: Dict[str, Any], user_input: str, client) ->
                 job_line = f"- **{title}**"
                 response_parts.append(job_line)
             response_parts.append("")
-
+        
+        # Course preparation advice
         if courses_count > 0:
             response_parts.append("To prepare for these opportunities, I recommend focusing on these courses at Jain University:")
             response_parts.append("")
@@ -672,45 +695,63 @@ def generate_response(query_results: Dict[str, Any], user_input: str, client) ->
                 title = course.get('title') or course.get('course_title', '')
                 response_parts.append(f"- **{course_code} - {title}**")
             response_parts.append("")
-
+    
     else:
         # General course search - counselor style
         if courses_count > 0:
             response_parts.append("Based on your interests, I found several courses at Jain University that could be great for you:")
             response_parts.append("")
+            
+            # Group by subject area
             subject_groups = {}
             for course in query_results['courses'][:8]:
                 subject = course.get('subject_area', 'Other')
-                subject_groups.setdefault(subject, []).append(course)
-
+                if subject not in subject_groups:
+                    subject_groups[subject] = []
+                subject_groups[subject].append(course)
+            
             for subject, courses in subject_groups.items():
                 if subject != 'Other' and courses:
                     response_parts.append(f"**In {subject}:**")
                     response_parts.append("")
+                    
                     for course in courses[:3]:
                         course_code = course.get('course_code', '')
                         title = course.get('title') or course.get('course_title', '')
                         jobs = course.get('job_matches', [])
+                        
                         course_line = f"- **{course_code} - {title}**"
                         response_parts.append(course_line)
+                        
                         if jobs:
                             response_parts.append(f"  Leads to: {', '.join(jobs[:2])}")
                         response_parts.append("")
-
+    
     # Closing counselor advice
-    if query_results.get('search_type') == 'course_pathway':
+    if query_results['search_type'] == 'course_pathway':
         response_parts.append("Remember, every expert was once a beginner. Focus on building strong fundamentals, and the advanced concepts will become much easier to grasp. What aspect interests you most?")
     elif jobs_count > 0:
         response_parts.append("The key is to start with courses that build foundational skills, then specialize based on where you want your career to go. Each step opens new doors.")
     else:
         response_parts.append("These are excellent options to explore. Consider what type of problems you enjoy solving - that will help guide your choice.")
-
+    
     return "\n".join(response_parts)
 
-
-# ---------- Chat Interface ----------
+# ---------- Initialize Chat with Welcome Message ----------
 if "messages" not in st.session_state:
     st.session_state.messages = []
+    
+    # Add welcome message on first load
+    welcome_message = """Hi! I'm your Jain University AI companion. I'm here to help you understand all the amazing options you have at Jain University to build your very own degree course that perfectly matches your interests and career aspirations.
+
+Whether you're curious about specific subjects, want to explore career paths, or need guidance on course prerequisites and progressions, I'm here to guide you through it all.
+
+What courses or career fields are you interested in exploring today?"""
+    
+    st.session_state.messages.append({
+        "role": "assistant", 
+        "content": welcome_message
+    })
 
 # Display chat history
 for msg in st.session_state.messages:
