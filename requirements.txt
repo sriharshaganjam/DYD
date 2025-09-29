@@ -26,3 +26,5 @@ langchain-community>=0.2.0
 
 # HTTP client (to call Mistral or any API)
 requests>=2.31.0
+
+matplotlib
